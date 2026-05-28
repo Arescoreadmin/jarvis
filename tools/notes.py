@@ -6,7 +6,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-from tools.registry import ToolBase
+from tools.registry import ToolBase, ToolSafety
 
 
 class NotesTool(ToolBase):
@@ -15,6 +15,14 @@ class NotesTool(ToolBase):
         "Read, create, update, and search notes stored as markdown files. "
         "Ideal for capturing ideas, meeting notes, project docs."
     )
+    action_policies = {
+        "list": ToolSafety(action_type="read", risk_level="low", requires_confirmation=False, reason="Lists local notes."),
+        "read": ToolSafety(action_type="read", risk_level="low", requires_confirmation=False, reason="Reads a local note."),
+        "write": ToolSafety(action_type="note_write", risk_level="low", requires_confirmation=False, reason="Writes a local note."),
+        "append": ToolSafety(action_type="note_write", risk_level="low", requires_confirmation=False, reason="Appends to a local note."),
+        "search": ToolSafety(action_type="read", risk_level="low", requires_confirmation=False, reason="Searches local notes."),
+    }
+
     input_schema = {
         "type": "object",
         "properties": {

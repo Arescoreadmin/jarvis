@@ -88,6 +88,22 @@ def _init_schema(conn: sqlite3.Connection) -> None:
         );
         CREATE INDEX IF NOT EXISTS idx_commitments_status ON commitments(status);
         CREATE INDEX IF NOT EXISTS idx_commitments_deadline ON commitments(deadline);
+
+        CREATE TABLE IF NOT EXISTS pending_actions (
+            id TEXT PRIMARY KEY,
+            tool_name TEXT NOT NULL,
+            action TEXT,
+            args_json TEXT NOT NULL,
+            action_type TEXT NOT NULL,
+            risk_level TEXT NOT NULL,
+            reason TEXT,
+            status TEXT DEFAULT 'pending',
+            created_at TEXT NOT NULL,
+            decided_at TEXT,
+            result TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_pending_actions_status ON pending_actions(status);
+        CREATE INDEX IF NOT EXISTS idx_pending_actions_created ON pending_actions(created_at);
     """)
     conn.commit()
 
@@ -341,6 +357,64 @@ class Memory:
             (now,),
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+    # ── Pending action approvals ───────────────────────────────────────────────
+
+    def add_pending_action(
+        self,
+        tool_name: str,
+        args: dict,
+        action_type: str,
+        risk_level: str,
+        reason: str = "",
+    ) -> str:
+        action_id = str(uuid.uuid4())
+        action = str(args.get("action", "")) if isinstance(args, dict) else ""
+        self._conn.execute(
+            """INSERT INTO pending_actions
+               (id, tool_name, action, args_json, action_type, risk_level, reason, status, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?)""",
+            (
+                action_id,
+                tool_name,
+                action,
+                json.dumps(args, sort_keys=True),
+                action_type,
+                risk_level,
+                reason,
+                _now(),
+            ),
+        )
+        self._conn.commit()
+        return action_id
+
+    def get_pending_actions(self) -> list[dict]:
+        rows = self._conn.execute(
+            "SELECT * FROM pending_actions WHERE status = 'pending' ORDER BY created_at ASC"
+        ).fetchall()
+        return [self._decode_pending_action(r) for r in rows]
+
+    def get_pending_action(self, action_id: str) -> Optional[dict]:
+        row = self._conn.execute(
+            "SELECT * FROM pending_actions WHERE id = ?", (action_id,)
+        ).fetchone()
+        return self._decode_pending_action(row) if row else None
+
+    def resolve_pending_action(self, action_id: str, status: str, result: str = "") -> None:
+        self._conn.execute(
+            "UPDATE pending_actions SET status = ?, decided_at = ?, result = ? WHERE id = ?",
+            (status, _now(), result, action_id),
+        )
+        self._conn.commit()
+
+    def _decode_pending_action(self, row) -> dict:
+        data = dict(row)
+        try:
+            data["args"] = json.loads(data.pop("args_json"))
+        except (TypeError, json.JSONDecodeError):
+            data["args"] = {}
+        return data
 
     def close(self) -> None:
         self._conn.close()

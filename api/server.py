@@ -44,13 +44,14 @@ security = HTTPBearer()
 _jarvis_components: dict = {}  # populated by main.py on startup
 
 
-def register_components(brain, memory, context, modes, anticipator) -> None:
+def register_components(brain, memory, context, modes, anticipator, tool_registry=None) -> None:
     _jarvis_components.update({
         "brain": brain,
         "memory": memory,
         "context": context,
         "modes": modes,
         "anticipator": anticipator,
+        "tools": tool_registry or getattr(brain, "_tools", None),
     })
 
 
@@ -82,6 +83,9 @@ class ModeRequest(BaseModel):
 class NoteRequest(BaseModel):
     trigger: str
     expansion: str
+
+class ActionDecisionRequest(BaseModel):
+    action_id: str
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -194,6 +198,59 @@ async def add_procedure(req: NoteRequest, _: str = Depends(verify_token)):
         raise HTTPException(status_code=503)
     memory.add_procedure(req.trigger, req.expansion)
     return {"result": f"Shortcut saved: '{req.trigger}' → {req.expansion}"}
+
+
+@app.get("/actions/pending")
+async def get_pending_actions(_: str = Depends(verify_token)):
+    memory = _jarvis_components.get("memory")
+    if not memory:
+        raise HTTPException(status_code=503, detail="Memory not available")
+    return {"actions": memory.get_pending_actions()}
+
+
+@app.post("/actions/approve")
+async def approve_action(req: ActionDecisionRequest, _: str = Depends(verify_token)):
+    memory = _jarvis_components.get("memory")
+    tool_registry = _jarvis_components.get("tools")
+    if not memory or not tool_registry:
+        raise HTTPException(status_code=503, detail="JARVIS not initialized")
+
+    action = memory.get_pending_action(req.action_id)
+    if not action:
+        raise HTTPException(status_code=404, detail="Pending action not found")
+    if action["status"] != "pending":
+        raise HTTPException(status_code=409, detail=f"Action already {action['status']}")
+
+    tool = tool_registry.get(action["tool_name"])
+    if not tool:
+        memory.resolve_pending_action(req.action_id, "failed", "Tool no longer available")
+        raise HTTPException(status_code=404, detail="Tool no longer available")
+
+    try:
+        result = await tool.run(**action["args"])
+    except Exception as e:
+        result = f"Error: {e}"
+        memory.resolve_pending_action(req.action_id, "failed", result)
+        return {"status": "failed", "result": result}
+
+    memory.resolve_pending_action(req.action_id, "executed", str(result))
+    return {"status": "executed", "result": str(result)}
+
+
+@app.post("/actions/reject")
+async def reject_action(req: ActionDecisionRequest, _: str = Depends(verify_token)):
+    memory = _jarvis_components.get("memory")
+    if not memory:
+        raise HTTPException(status_code=503, detail="Memory not available")
+
+    action = memory.get_pending_action(req.action_id)
+    if not action:
+        raise HTTPException(status_code=404, detail="Pending action not found")
+    if action["status"] != "pending":
+        raise HTTPException(status_code=409, detail=f"Action already {action['status']}")
+
+    memory.resolve_pending_action(req.action_id, "rejected", "Rejected by user")
+    return {"status": "rejected"}
 
 
 @app.get("/alerts")

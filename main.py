@@ -116,7 +116,7 @@ async def main() -> None:
         on_alert=on_alert,
     )
 
-    register_components(brain, memory, context, modes, anticipator)
+    register_components(brain, memory, context, modes, anticipator, registry)
 
     voice = Voice()
     listener = Listener(wake_word=config.get("wake_word", "jarvis"))

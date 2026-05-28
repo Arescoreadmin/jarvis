@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
-from tools.registry import ToolBase
+from tools.registry import ToolBase, ToolSafety
 
 try:
     from google.oauth2.credentials import Credentials
@@ -28,6 +28,14 @@ class CalendarTool(ToolBase):
         "Read and manage Google Calendar events. "
         "Get upcoming events, create events, check availability, find free slots."
     )
+    action_policies = {
+        "upcoming": ToolSafety(action_type="read", risk_level="low", requires_confirmation=False, reason="Reads upcoming calendar events."),
+        "create": ToolSafety(action_type="calendar_write", risk_level="medium", requires_confirmation=False, reason="Creates a calendar event."),
+        "delete": ToolSafety(action_type="destructive_calendar_write", risk_level="high", requires_confirmation=True, reason="Deletes an existing calendar event."),
+        "check_day": ToolSafety(action_type="read", risk_level="low", requires_confirmation=False, reason="Reads calendar availability."),
+        "find_free_slot": ToolSafety(action_type="read", risk_level="low", requires_confirmation=False, reason="Reads calendar availability."),
+    }
+
     input_schema = {
         "type": "object",
         "properties": {

@@ -7,7 +7,7 @@ import os
 from email.mime.text import MIMEText
 from pathlib import Path
 
-from tools.registry import ToolBase
+from tools.registry import ToolBase, ToolSafety
 
 try:
     from google.oauth2.credentials import Credentials
@@ -33,6 +33,14 @@ class EmailTool(ToolBase):
         "Read, search, draft, and send email via Gmail. "
         "Can search by sender, subject, date. Always confirms before sending."
     )
+    action_policies = {
+        "search": ToolSafety(action_type="read", risk_level="low", requires_confirmation=False, reason="Searches mailbox metadata and snippets."),
+        "read": ToolSafety(action_type="read", risk_level="low", requires_confirmation=False, reason="Reads a selected email message."),
+        "draft": ToolSafety(action_type="external_communication_draft", risk_level="medium", requires_confirmation=False, reason="Creates a draft but does not send it."),
+        "send": ToolSafety(action_type="external_communication", risk_level="high", requires_confirmation=True, reason="Sends an email to an external recipient."),
+        "unread_count": ToolSafety(action_type="read", risk_level="low", requires_confirmation=False, reason="Counts unread email."),
+    }
+
     input_schema = {
         "type": "object",
         "properties": {

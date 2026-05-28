@@ -8,7 +8,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from tools.registry import ToolBase
+from tools.registry import ToolBase, ToolSafety
 
 TASKS_DB = Path(__file__).parent.parent / "data" / "tasks.db"
 
@@ -40,6 +40,14 @@ class TaskTool(ToolBase):
         "Create, update, list, and complete tasks. "
         "Tasks support priority (high/medium/low), due dates, and project tags."
     )
+    action_policies = {
+        "create": ToolSafety(action_type="task_write", risk_level="low", requires_confirmation=False, reason="Creates a local task."),
+        "list": ToolSafety(action_type="read", risk_level="low", requires_confirmation=False, reason="Lists local tasks."),
+        "complete": ToolSafety(action_type="task_write", risk_level="low", requires_confirmation=False, reason="Marks a local task complete."),
+        "update": ToolSafety(action_type="task_write", risk_level="medium", requires_confirmation=False, reason="Updates a local task."),
+        "delete": ToolSafety(action_type="destructive_task_write", risk_level="medium", requires_confirmation=True, reason="Deletes a local task."),
+    }
+
     input_schema = {
         "type": "object",
         "properties": {

@@ -3,7 +3,7 @@ Home Assistant integration. Controls lights, locks, thermostats, media, and any 
 Also provides anomaly detection for the anticipator.
 """
 import httpx
-from tools.registry import ToolBase
+from tools.registry import ToolBase, ToolSafety
 
 
 class HomeControlTool(ToolBase):
@@ -13,6 +13,15 @@ class HomeControlTool(ToolBase):
         "Turn lights on/off, set brightness/color, adjust thermostat, lock/unlock doors, "
         "control media players, check device states."
     )
+    action_policies = {
+        "list_devices": ToolSafety(action_type="read", risk_level="low", requires_confirmation=False, reason="Lists Home Assistant devices."),
+        "get_state": ToolSafety(action_type="read", risk_level="low", requires_confirmation=False, reason="Reads Home Assistant device state."),
+        "turn_on": ToolSafety(action_type="physical_world_action", risk_level="high", requires_confirmation=True, reason="Changes the state of a physical smart-home device."),
+        "turn_off": ToolSafety(action_type="physical_world_action", risk_level="high", requires_confirmation=True, reason="Changes the state of a physical smart-home device."),
+        "toggle": ToolSafety(action_type="physical_world_action", risk_level="high", requires_confirmation=True, reason="Changes the state of a physical smart-home device."),
+        "set": ToolSafety(action_type="physical_world_action", risk_level="high", requires_confirmation=True, reason="Changes the state of a physical smart-home device."),
+    }
+
     input_schema = {
         "type": "object",
         "properties": {

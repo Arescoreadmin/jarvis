@@ -205,6 +205,22 @@ class Brain:
             yield f"[Tool {name} not available]"
             return
 
+        safety = tool.safety_for(args)
+        if safety.requires_confirmation:
+            action_id = self._memory.add_pending_action(
+                tool_name=name,
+                args=args,
+                action_type=safety.action_type,
+                risk_level=safety.risk_level,
+                reason=safety.reason,
+            )
+            action = args.get("action", name)
+            yield (
+                f"Confirmation required [{action_id}] before I {action} via {name}. "
+                f"Reason: {safety.reason}"
+            )
+            return
+
         try:
             result = await tool.run(**args)
         except Exception as e:

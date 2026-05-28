@@ -4,21 +4,60 @@ Central tool registry.
 Each tool registers itself with a name and a JSON schema.
 The registry converts to Claude's tool_use format for injection into API calls.
 """
+from dataclasses import dataclass
 from typing import Any, Optional
+
+
+@dataclass(frozen=True)
+class ToolSafety:
+    """Execution policy metadata for a specific tool invocation."""
+
+    action_type: str = "read"
+    risk_level: str = "low"
+    requires_confirmation: bool = False
+    reason: str = "Read-only or low-risk action"
 
 
 class ToolBase:
     name: str = ""
     description: str = ""
     input_schema: dict = {}
+    action_type: str = "read"
+    risk_level: str = "low"
+    requires_confirmation: bool = False
+    confirmation_reason: str = "Read-only or low-risk action"
+    action_policies: dict[str, ToolSafety] = {}
 
     async def run(self, **kwargs) -> Any:
         raise NotImplementedError
 
+    def safety_for(self, kwargs: dict) -> ToolSafety:
+        """Return the risk policy for this invocation.
+
+        Tools that multiplex actions through an ``action`` argument can declare
+        per-action policies in ``action_policies``. Tools without an action map
+        fall back to their class-level defaults.
+        """
+        action = str(kwargs.get("action", "")).lower()
+        if action and action in self.action_policies:
+            return self.action_policies[action]
+        return ToolSafety(
+            action_type=self.action_type,
+            risk_level=self.risk_level,
+            requires_confirmation=self.requires_confirmation,
+            reason=self.confirmation_reason,
+        )
+
     def to_claude_schema(self) -> dict:
+        safety = self.safety_for({})
+        description = self.description
+        if safety.requires_confirmation or any(
+            policy.requires_confirmation for policy in self.action_policies.values()
+        ):
+            description = f"{description} Sensitive actions require user confirmation before execution."
         return {
             "name": self.name,
-            "description": self.description,
+            "description": description,
             "input_schema": self.input_schema,
         }
 

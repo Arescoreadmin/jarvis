@@ -1,0 +1,44 @@
+# Core
+anthropic>=0.40.0
+python-dotenv>=1.0.0
+pyyaml>=6.0
+
+# Async HTTP
+httpx>=0.27.0
+
+# Remote API
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+PyJWT>=2.9.0
+pydantic>=2.0.0
+websockets>=13.0
+
+# Wake word + audio
+pvporcupine>=3.0.0
+pyaudio>=0.2.14
+
+# STT
+deepgram-sdk>=3.7.0
+
+# TTS
+cartesia>=1.0.0
+elevenlabs>=1.0.0          # fallback
+pyttsx3>=2.90              # offline fallback
+
+# Google integrations (Calendar + Gmail)
+google-auth>=2.35.0
+google-auth-oauthlib>=1.2.0
+google-auth-httplib2>=0.2.0
+google-api-python-client>=2.154.0
+
+# Memory / vector store
+chromadb>=0.5.0
+
+# Optional: local whisper STT fallback
+# openai-whisper>=20240930
+
+# Audio playback fallback
+simpleaudio>=1.0.4
+
+# Biometrics
+# oura-python>=0.1.0  # thin wrapper, or use httpx directly (already included)

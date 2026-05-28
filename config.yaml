@@ -1,0 +1,66 @@
+# JARVIS Configuration
+# Copy this to config.yaml and fill in your values.
+# Sensitive keys go in .env, not here.
+
+# ── User ──────────────────────────────────────────────────────────────────────
+user:
+  name: ""                    # Full name
+  preferred_name: ""          # What JARVIS calls you
+  timezone: "America/New_York"
+  wake_time: "07:00"
+
+# ── Interface ─────────────────────────────────────────────────────────────────
+wake_word: "jarvis"           # Wake word (must match Porcupine keyword)
+input_mode: "hybrid"          # hybrid | voice | text
+text_fallback: true           # Fall back to stdin if no audio device
+
+# ── Remote API ────────────────────────────────────────────────────────────────
+enable_remote_api: true
+api_port: 8765
+
+# ── Google Integrations ───────────────────────────────────────────────────────
+google_calendar_credentials: "./data/google_creds.json"
+gmail_credentials: "./data/google_creds.json"   # same OAuth app works for both
+
+# ── Smart Home ────────────────────────────────────────────────────────────────
+home_assistant_url: ""        # e.g. http://homeassistant.local:8123
+home_assistant_token: ""      # Long-lived access token from HA settings
+
+# ── Finance ───────────────────────────────────────────────────────────────────
+alpaca_mode: "paper"          # paper | live
+watchlist:                    # Tickers to monitor for significant moves
+  - AAPL
+  - TSLA
+  - BTC/USD
+finance_alert_threshold_pct: 5.0  # Alert if position moves > this % in a day
+
+# ── Health ────────────────────────────────────────────────────────────────────
+oura_low_readiness_threshold: 60   # Alert below this readiness score
+
+# ── Anticipator ───────────────────────────────────────────────────────────────
+anticipator:
+  check_interval_seconds: 300    # Full scan every 5 minutes
+  urgent_check_seconds: 60       # Commitment + urgent scan every 1 minute
+  meeting_prep_window_minutes: 40 # Alert when meeting is within this window
+
+# ── Memory ────────────────────────────────────────────────────────────────────
+memory:
+  episodic_retention_days: 90
+  vector_search: true          # Use ChromaDB for semantic search if available
+
+# ── Voice ─────────────────────────────────────────────────────────────────────
+voice:
+  provider: "cartesia"         # cartesia | elevenlabs | pyttsx3
+  tts_speed: 1.0
+  # Voice IDs configured in .env: CARTESIA_VOICE_ID, ELEVENLABS_VOICE_ID
+
+# ── Notes ─────────────────────────────────────────────────────────────────────
+notes_dir: "./data/notes"
+
+# ── Active projects (surfaces in context) ────────────────────────────────────
+active_projects: []
+# Example:
+# active_projects:
+#   - "Q3 product launch"
+#   - "Series A fundraise"
+#   - "JARVIS build"

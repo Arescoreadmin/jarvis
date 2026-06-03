@@ -91,6 +91,7 @@ class Anticipator:
                         self._check_health(),
                         self._check_finance(),
                         self._check_home(),
+                        self._check_watchlist(),
                         return_exceptions=True,
                     )
                     self._prune_expired()
@@ -242,6 +243,34 @@ class Anticipator:
                     ))
         except Exception as e:
             log.warning("Home check failed: %s", e)
+
+    async def _check_watchlist(self) -> None:
+        watches = self._memory.watchlist.get_active()
+        if not watches:
+            return
+        for watch in watches:
+            tool = self._tools.get(watch["tool_name"])
+            if not tool:
+                continue
+            try:
+                result = str(await tool.run(**watch["tool_args"]))
+                changed = self._memory.watchlist.has_changed(watch, result)
+                if changed:
+                    key = f"watch:{watch['id']}"
+                    if not self._already_queued("watchlist", key):
+                        self._enqueue(Alert(
+                            priority=watch.get("priority", "medium"),
+                            category="watchlist",
+                            message=f"Watch update — {watch['description']}: {result[:200]}",
+                            action_hint="Review the change and take action if needed.",
+                        ))
+                        self._memory.watchlist.update_result(watch["id"], result, fired=True)
+                        if not watch.get("recur"):
+                            self._memory.watchlist.deactivate(watch["id"])
+                else:
+                    self._memory.watchlist.update_result(watch["id"], result, fired=False)
+            except Exception as e:
+                log.warning("Watchlist check failed for '%s': %s", watch["description"], e)
 
     def _enqueue(self, alert: Alert) -> None:
         self._queue.append(alert)

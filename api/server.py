@@ -48,7 +48,10 @@ security = HTTPBearer()
 _jarvis_components: dict = {}  # populated by main.py on startup
 
 
-def register_components(brain, memory, context, modes, anticipator, tool_registry=None) -> None:
+def register_components(
+    brain, memory, context, modes, anticipator, tool_registry=None,
+    relationship_engine=None, push_notifier=None,
+) -> None:
     _jarvis_components.update({
         "brain": brain,
         "memory": memory,
@@ -56,6 +59,8 @@ def register_components(brain, memory, context, modes, anticipator, tool_registr
         "modes": modes,
         "anticipator": anticipator,
         "tools": tool_registry or getattr(brain, "_tools", None),
+        "relationships": relationship_engine,
+        "push": push_notifier,
     })
 
 
@@ -101,6 +106,23 @@ class WatchRequest(BaseModel):
 
 class WatchRemoveRequest(BaseModel):
     watch_id: str
+
+class VisionRequest(BaseModel):
+    message: str
+    images: list[dict]  # [{"base64": "...", "media_type": "image/jpeg"}]
+
+class ContactUpsertRequest(BaseModel):
+    name: str
+    relationship: str = ""
+    email: str = ""
+    phone: str = ""
+    communication_style: str = ""
+    notes: str = ""
+
+class InteractionRequest(BaseModel):
+    person_name: str
+    interaction_type: str = "note"
+    summary: str
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -353,6 +375,66 @@ async def ws_execute(websocket: WebSocket):
         await websocket.send_text("\x00")
     except WebSocketDisconnect:
         pass
+
+
+# ── Vision ────────────────────────────────────────────────────────────────────
+
+@app.post("/chat/vision")
+async def chat_vision(req: VisionRequest, _: str = Depends(verify_token)):
+    brain = _jarvis_components.get("brain")
+    if not brain:
+        raise HTTPException(status_code=503, detail="JARVIS not initialized")
+    response_parts = []
+    async for chunk in await brain.respond(req.message, images=req.images):
+        response_parts.append(chunk)
+    return {"response": "".join(response_parts)}
+
+
+# ── Relationships ─────────────────────────────────────────────────────────────
+
+@app.get("/relationships")
+async def get_relationships(_: str = Depends(verify_token)):
+    memory = _jarvis_components.get("memory")
+    if not memory:
+        raise HTTPException(status_code=503)
+    return {"contacts": memory.get_all_contacts()}
+
+
+@app.post("/relationships/contact")
+async def upsert_contact(req: ContactUpsertRequest, _: str = Depends(verify_token)):
+    memory = _jarvis_components.get("memory")
+    if not memory:
+        raise HTTPException(status_code=503)
+    fields = {k: v for k, v in req.model_dump().items() if v and k != "name"}
+    cid = memory.upsert_contact(req.name, **fields)
+    return {"id": cid, "result": f"Contact saved: {req.name}"}
+
+
+@app.post("/relationships/interaction")
+async def record_interaction(req: InteractionRequest, _: str = Depends(verify_token)):
+    rel = _jarvis_components.get("relationships")
+    if not rel:
+        raise HTTPException(status_code=503, detail="Relationship engine not initialized")
+    rel.record_interaction(req.person_name, req.interaction_type, req.summary)
+    return {"result": f"Interaction recorded with {req.person_name}"}
+
+
+@app.get("/relationships/drift")
+async def get_drift_alerts(_: str = Depends(verify_token)):
+    rel = _jarvis_components.get("relationships")
+    if not rel:
+        raise HTTPException(status_code=503, detail="Relationship engine not initialized")
+    return {"drifted": rel.get_drift_alerts()}
+
+
+@app.get("/relationships/brief/{event_title}")
+async def get_meeting_brief(event_title: str, attendees: str = "", _: str = Depends(verify_token)):
+    rel = _jarvis_components.get("relationships")
+    if not rel:
+        raise HTTPException(status_code=503)
+    names = [n.strip() for n in attendees.split(",") if n.strip()]
+    brief = rel.get_pre_meeting_brief(names, event_title)
+    return {"brief": brief}
 
 
 # ── Watchlist ─────────────────────────────────────────────────────────────────

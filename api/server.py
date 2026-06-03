@@ -272,3 +272,51 @@ async def get_token(api_key: str):
     if api_key != os.environ.get("JARVIS_API_SECRET", ""):
         raise HTTPException(status_code=401, detail="Invalid API key")
     return {"token": create_token()}
+
+
+# ── Developer CLI hooks ────────────────────────────────────────────────────────
+
+class DevEventRequest(BaseModel):
+    source: str                  # claude-code | codex
+    event_type: str              # PostToolUse | Stop | session_start | session_end
+    session_id: str = ""
+    cwd: str = ""
+    payload: dict = {}
+
+
+@app.post("/events/dev")
+async def ingest_dev_event(req: DevEventRequest, _: str = Depends(verify_token)):
+    """
+    Receives hook events from Claude Code CLI and OpenAI Codex CLI.
+    Fire-and-forget from the CLI side — always returns 200 immediately.
+    """
+    memory = _jarvis_components.get("memory")
+    if memory:
+        try:
+            memory.dev.ingest(req.model_dump())
+            ctx = _jarvis_components.get("context")
+            if ctx:
+                ctx.invalidate()
+        except Exception:
+            pass
+    return {"ok": True}
+
+
+@app.get("/dev/context")
+async def get_dev_context(_: str = Depends(verify_token)):
+    memory = _jarvis_components.get("memory")
+    if not memory:
+        raise HTTPException(status_code=503)
+    return {
+        "active_session": memory.dev.get_active_session(),
+        "recent_sessions": memory.dev.get_recent_sessions(hours=24),
+        "context_block": memory.dev.build_context_block(),
+    }
+
+
+@app.get("/dev/stats")
+async def get_dev_stats(_: str = Depends(verify_token)):
+    memory = _jarvis_components.get("memory")
+    if not memory:
+        raise HTTPException(status_code=503)
+    return {"project_stats": memory.dev.get_project_stats(days=7)}

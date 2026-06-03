@@ -112,6 +112,10 @@ class Memory:
     def __init__(self):
         self._conn = _connect()
         _init_schema(self._conn)
+        from core.dev_context import DevContextTracker, DEV_SCHEMA
+        self._conn.executescript(DEV_SCHEMA)
+        self._conn.commit()
+        self.dev = DevContextTracker(self._conn)
         self._working: dict[str, Any] = {}
         self._session_id = str(uuid.uuid4())
 

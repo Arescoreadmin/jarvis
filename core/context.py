@@ -36,6 +36,7 @@ class ContextSnapshot:
     overdue_commitments: list[dict] = field(default_factory=list)
     health_note: str = ""          # e.g. "HRV low today — consider lighter cognitive load"
     financial_alert: str = ""      # e.g. "AAPL -4.2% today"
+    dev_context: str = ""          # e.g. "Claude Code / jarvis — 42m, 31 tool calls"
     proactive_alerts: list[dict] = field(default_factory=list)
 
     def to_prompt_block(self) -> str:
@@ -73,6 +74,9 @@ class ContextSnapshot:
 
         if self.financial_alert:
             lines.append(f"Finance: {self.financial_alert}")
+
+        if self.dev_context:
+            lines.append(self.dev_context)
 
         if self.proactive_alerts:
             lines.append("Alerts:")
@@ -138,6 +142,11 @@ class ContextAggregator:
         )
 
         calendar_events, email_count, task_count, health_note, finance_alert = results
+
+        try:
+            snap.dev_context = self._memory.dev.build_context_block()
+        except Exception:
+            pass
 
         if not isinstance(calendar_events, Exception):
             snap.upcoming_events = calendar_events or []

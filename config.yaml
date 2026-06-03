@@ -64,3 +64,27 @@ active_projects: []
 #   - "Q3 product launch"
 #   - "Series A fundraise"
 #   - "JARVIS build"
+
+# ── Push Notifications ────────────────────────────────────────────────────────
+# Provider: ntfy (recommended, free) | pushover | webhook | none
+# ntfy: install the app, subscribe to your topic, set NTFY_TOPIC in .env
+push:
+  provider: "ntfy"
+  # ntfy_topic set via NTFY_TOPIC env var
+  # ntfy_url defaults to https://ntfy.sh (set NTFY_URL for self-hosted)
+
+# ── Relationships ──────────────────────────────────────────────────────────────
+relationships:
+  drift_check: true             # Surface drift alerts in anticipator
+  pre_meeting_brief: true       # Auto-brief before calendar events
+
+# ── Professional Intelligence ──────────────────────────────────────────────────
+# These tools are available to JARVIS automatically via the tool registry.
+# No extra config needed — just use them in conversation:
+#   "Review this code for security issues"
+#   "Design an architecture for X"
+#   "Add OKR: Q3 objective is to..."
+#   "What's my runway if I cut burn 20%?"
+#   "Generate an investor update"
+professional:
+  enabled: true

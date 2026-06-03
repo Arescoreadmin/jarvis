@@ -48,7 +48,7 @@ class Brain:
         self._client = anthropic.AsyncAnthropic()
         self._base_system = _extract_system_prompt(SYSTEM_PROMPT_PATH)
 
-    def _build_system(self, context_snapshot) -> str:
+    def _build_system(self, context_snapshot, mention_names: list[str] | None = None) -> str:
         profile = self._memory.get_user_profile()
         name = profile.get("preferred_name") or profile.get("name") or "the user"
         mode_addendum = self._modes.profile.system_addendum
@@ -62,25 +62,55 @@ class Brain:
                 lines.append(f'  "{p["trigger"]}" → {p["expansion"]}')
             proc_block = "\n".join(lines)
 
+        # Behavioral facts extracted by distiller
+        behavioral = []
+        for key in ("prefers_short_answers", "communication_style", "risk_tolerance",
+                    "work_style", "decision_speed", "top_concerns"):
+            val = self._memory.get_semantic(f"profile/{key}")
+            if val:
+                behavioral.append(f"  {key}: {val}")
+        behavioral_block = ("Behavioral profile:\n" + "\n".join(behavioral)) if behavioral else ""
+
         return "\n\n---\n\n".join(filter(None, [
             self._base_system,
             f"The user's name is {name}.",
             mode_addendum,
             context_block,
             proc_block,
+            behavioral_block,
         ]))
 
     async def respond(
         self,
         user_input: str,
         stream: bool = True,
+        images: list[dict] | None = None,
     ) -> AsyncIterator[str] | str:
+        """
+        images: optional list of {"base64": "...", "media_type": "image/jpeg|png|gif|webp"}
+        """
         context = await self._context.get()
         system = self._build_system(context)
         history = self._memory.get_session_history()
         self._memory.add_episode("user", user_input)
 
-        messages = history + [{"role": "user", "content": user_input}]
+        if images:
+            user_content: list = [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": img["media_type"],
+                        "data": img["base64"],
+                    },
+                }
+                for img in images
+            ]
+            user_content.append({"type": "text", "text": user_input})
+            messages = history + [{"role": "user", "content": user_content}]
+        else:
+            messages = history + [{"role": "user", "content": user_input}]
+
         tool_schemas = self._tools.to_claude_schema()
 
         if stream:

@@ -34,12 +34,23 @@ class Anticipator:
     CHECK_INTERVAL = 300  # 5 minutes between full scans
     URGENT_INTERVAL = 60  # 1 minute for urgent-only scan
 
-    def __init__(self, memory, mode_manager, context_aggregator, tool_registry, on_alert=None):
+    def __init__(
+        self,
+        memory,
+        mode_manager,
+        context_aggregator,
+        tool_registry,
+        on_alert=None,
+        push_notifier=None,
+        relationship_engine=None,
+    ):
         self._memory = memory
         self._modes = mode_manager
         self._context = context_aggregator
         self._tools = tool_registry
-        self._on_alert = on_alert  # async callback(Alert) when alert should surface
+        self._on_alert = on_alert
+        self._push = push_notifier
+        self._relationships = relationship_engine
         self._queue: list[Alert] = []
         self._running = False
         self._task: Optional[asyncio.Task] = None
@@ -92,6 +103,7 @@ class Anticipator:
                         self._check_finance(),
                         self._check_home(),
                         self._check_watchlist(),
+                        self._check_relationship_drift(),
                         return_exceptions=True,
                     )
                     self._prune_expired()
@@ -103,6 +115,11 @@ class Anticipator:
                             await self._on_alert(alert)
                         except Exception as e:
                             log.error("Alert callback failed: %s", e)
+                    if self._push and self._push.available:
+                        try:
+                            await self._push.send_alert(alert)
+                        except Exception as e:
+                            log.debug("Push delivery failed: %s", e)
 
             except asyncio.CancelledError:
                 break
@@ -155,11 +172,20 @@ class Anticipator:
                 if 15 <= minutes <= 40:
                     title = event.get("title", "event")
                     if not self._already_queued("calendar", title):
+                        action_hint = "Check prep notes or brief the user"
+                        if self._relationships:
+                            try:
+                                attendees = self._relationships.extract_people_from_event(event)
+                                if attendees:
+                                    brief = self._relationships.get_pre_meeting_brief(attendees, title)
+                                    action_hint = brief[:400]
+                            except Exception:
+                                pass
                         self._enqueue(Alert(
                             priority="urgent",
                             category="calendar",
                             message=f"{title} in {int(minutes)} minutes",
-                            action_hint="Check prep notes or brief the user",
+                            action_hint=action_hint,
                         ))
 
                 elif 60 <= minutes <= 90:
@@ -244,7 +270,27 @@ class Anticipator:
         except Exception as e:
             log.warning("Home check failed: %s", e)
 
-    async def _check_watchlist(self) -> None:
+    async def _check_relationship_drift(self) -> None:
+        if not self._relationships:
+            return
+        try:
+            drifted = self._relationships.get_drift_alerts()
+            for d in drifted[:3]:
+                key = f"drift:{d['name']}"
+                if not self._already_queued("relationship", key):
+                    self._enqueue(Alert(
+                        priority="medium",
+                        category="relationship",
+                        message=(
+                            f"Haven't connected with {d['name']} in {d['days_since']} days "
+                            f"({d['relationship']})"
+                        ),
+                        action_hint=f"Reach out to {d['name']} — a quick message keeps the relationship warm.",
+                    ))
+        except Exception as e:
+            log.warning("Relationship drift check failed: %s", e)
+
+    async def _check_calendar(self) -> None:
         watches = self._memory.watchlist.get_active()
         if not watches:
             return

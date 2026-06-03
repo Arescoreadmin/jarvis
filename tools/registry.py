@@ -91,6 +91,9 @@ def build_registry(config: dict) -> ToolRegistry:
     from tools.finance import FinanceTool
     from tools.health import HealthTool
     from tools.research import ResearchTool
+    from tools.code_assistant import CodeAssistantTool
+    from tools.architect import ArchitectTool
+    from tools.business import BusinessTool
 
     registry.register(WebSearchTool())
     registry.register(CalendarTool(config.get("google_calendar_credentials", "")))
@@ -107,5 +110,8 @@ def build_registry(config: dict) -> ToolRegistry:
     ))
     registry.register(HealthTool(oura_token=config.get("oura_personal_token", "")))
     registry.register(ResearchTool())
+    registry.register(CodeAssistantTool())
+    registry.register(ArchitectTool())
+    registry.register(BusinessTool())
 
     return registry

@@ -38,6 +38,8 @@ from core.brain import Brain
 from core.context import ContextAggregator
 from core.anticipator import Anticipator
 from core.distiller import Distiller
+from core.relationships import RelationshipEngine
+from core.push import PushNotifier
 from core.listener import Listener
 from core.voice import Voice
 from tools.registry import build_registry
@@ -122,21 +124,28 @@ async def main() -> None:
     context = ContextAggregator(memory, modes, registry)
     brain._context = context
 
+    distiller = Distiller(memory)
+    relationships = RelationshipEngine(memory, registry)
+    push = PushNotifier()
+
+    if push.available:
+        log.info("Push notifications enabled")
+
     anticipator = Anticipator(
         memory=memory,
         mode_manager=modes,
         context_aggregator=context,
         tool_registry=registry,
         on_alert=on_alert,
+        push_notifier=push,
+        relationship_engine=relationships,
     )
 
-    register_components(brain, memory, context, modes, anticipator, registry)
+    register_components(brain, memory, context, modes, anticipator, registry, relationships, push)
 
     executor = Executor(memory, modes, context, registry)
     voice = Voice()
     listener = Listener(wake_word=config.get("wake_word", "jarvis"))
-
-    distiller = Distiller(memory)
 
     anticipator.start()
     log.info("Anticipator started")
@@ -168,6 +177,25 @@ async def main() -> None:
             result = modes.set(modes.from_string(mode_str))
             voice.set_mode(modes.current.value)
             await voice.speak(result)
+            continue
+
+        # Relationship commands
+        if lower.startswith("brief me on ") or lower.startswith("who is "):
+            name_query = utterance.replace("brief me on ", "").replace("who is ", "").strip()
+            ctx = relationships.get_contact_context(name_query)
+            if ctx:
+                await voice.speak(ctx[:600])
+            else:
+                await voice.speak(f"No relationship history for {name_query}.")
+            continue
+
+        if lower.startswith("log interaction with ") or lower.startswith("talked to "):
+            rest = utterance.replace("log interaction with ", "").replace("talked to ", "")
+            parts = rest.split(" about ", 1)
+            person = parts[0].strip()
+            summary = parts[1].strip() if len(parts) > 1 else "general conversation"
+            relationships.record_interaction(person, "conversation", summary)
+            await voice.speak(f"Logged: interaction with {person}.")
             continue
 
         # Watchlist — "watch <tool>: <description> when <condition>"

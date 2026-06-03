@@ -170,6 +170,31 @@
     .mode-opt:active,.mode-opt.active{background:var(--surface2)}
     .mode-name{font-size:15px;font-weight:600}
     .mode-desc{font-size:12px;color:var(--dim)}
+
+    /* ── Watchlist Sheet ─────────────────────────────── */
+    #watch-overlay{
+      position:fixed;inset:0;background:rgba(0,0,0,.6);
+      display:none;align-items:flex-end;z-index:50;
+    }
+    .watch-item{
+      padding:10px 12px;border-radius:10px;background:var(--surface2);
+      margin-bottom:6px;display:flex;align-items:center;gap:10px;
+    }
+    .watch-info{flex:1;min-width:0}
+    .watch-desc{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .watch-meta{font-size:11px;color:var(--dim);margin-top:2px}
+    .watch-remove{
+      background:none;border:1px solid var(--border);color:var(--dim);
+      border-radius:6px;padding:4px 9px;font-size:11px;cursor:pointer;flex-shrink:0;
+    }
+    .watch-remove:active{background:var(--danger);color:#fff;border-color:var(--danger)}
+    .watch-empty{font-size:13px;color:var(--dim);text-align:center;padding:20px 0}
+    #watch-badge{
+      padding:3px 8px;border-radius:4px;font-size:10px;font-weight:700;
+      letter-spacing:1px;text-transform:uppercase;
+      background:var(--surface2);color:#a855f7;border:1px solid var(--border);
+      cursor:pointer;user-select:none;display:none;
+    }
   </style>
 </head>
 <body>
@@ -210,6 +235,14 @@
   </div>
 </div>
 
+<!-- Watchlist sheet -->
+<div id="watch-overlay" onclick="if(event.target===this)closeWatches()">
+  <div class="sheet">
+    <h3>Active Watches</h3>
+    <div id="watch-list"><div class="watch-empty">No active watches</div></div>
+  </div>
+</div>
+
 <!-- Header -->
 <header>
   <div class="h-left">
@@ -218,6 +251,7 @@
   </div>
   <div class="h-right">
     <div class="alert-count" id="alert-count">0</div>
+    <div id="watch-badge" onclick="openWatches()">WATCH</div>
     <div class="badge" id="mode-badge" onclick="openModes()">EXEC</div>
   </div>
 </header>
@@ -437,6 +471,48 @@ function apiFetch(path, method='GET', body=null){
   return fetch(BASE + path, opts);
 }
 
+// ── Watchlist ─────────────────────────────────────────────────────────────────
+
+function openWatches(){ loadWatches(); document.getElementById('watch-overlay').style.display = 'flex'; }
+function closeWatches(){ document.getElementById('watch-overlay').style.display = 'none'; }
+
+async function loadWatches(){
+  try{
+    const d = await apiFetch('/watchlist').then(r => r.json());
+    const watches = d.watches || [];
+    const container = document.getElementById('watch-list');
+    if(!watches.length){
+      container.innerHTML = '<div class="watch-empty">No active watches</div>';
+      document.getElementById('watch-badge').style.display = 'none';
+      return;
+    }
+    document.getElementById('watch-badge').style.display = 'inline';
+    container.innerHTML = watches.map(w => `
+      <div class="watch-item" id="wi-${w.id}">
+        <div class="watch-info">
+          <div class="watch-desc">${escHtml(w.description)}</div>
+          <div class="watch-meta">${escHtml(w.tool_name)} · ${w.priority} · ${w.recur ? 'recurring' : 'one-shot'}</div>
+        </div>
+        <button class="watch-remove" onclick="removeWatch('${w.id}')">Stop</button>
+      </div>`).join('');
+  } catch(e){}
+}
+
+async function removeWatch(id){
+  try{
+    await apiFetch('/watchlist/'+id,'DELETE');
+    const el = document.getElementById('wi-'+id);
+    if(el) el.remove();
+    const container = document.getElementById('watch-list');
+    if(!container.querySelector('.watch-item'))
+      container.innerHTML = '<div class="watch-empty">No active watches</div>';
+  } catch(e){}
+}
+
+function escHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 if(token){
@@ -446,6 +522,7 @@ if(token){
 }
 
 setInterval(loadContext, 90000);
+setInterval(loadWatches, 120000);
 </script>
 </body>
 </html>

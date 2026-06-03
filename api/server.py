@@ -91,6 +91,17 @@ class NoteRequest(BaseModel):
 class ActionDecisionRequest(BaseModel):
     action_id: str
 
+class WatchRequest(BaseModel):
+    description: str
+    tool_name: str
+    tool_args: dict = {}
+    condition: str
+    priority: str = "medium"
+    recur: bool = True
+
+class WatchRemoveRequest(BaseModel):
+    watch_id: str
+
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
@@ -342,6 +353,56 @@ async def ws_execute(websocket: WebSocket):
         await websocket.send_text("\x00")
     except WebSocketDisconnect:
         pass
+
+
+# ── Watchlist ─────────────────────────────────────────────────────────────────
+
+@app.get("/watchlist")
+async def get_watchlist(_: str = Depends(verify_token)):
+    memory = _jarvis_components.get("memory")
+    if not memory:
+        raise HTTPException(status_code=503)
+    return {"watches": memory.watchlist.get_all()}
+
+
+@app.post("/watchlist")
+async def add_watch(req: WatchRequest, _: str = Depends(verify_token)):
+    memory = _jarvis_components.get("memory")
+    if not memory:
+        raise HTTPException(status_code=503)
+    watch_id = memory.watchlist.add(
+        description=req.description,
+        tool_name=req.tool_name,
+        tool_args=req.tool_args,
+        condition=req.condition,
+        priority=req.priority,
+        recur=req.recur,
+    )
+    return {"watch_id": watch_id, "result": f"Now watching: {req.description}"}
+
+
+@app.delete("/watchlist/{watch_id}")
+async def remove_watch(watch_id: str, _: str = Depends(verify_token)):
+    memory = _jarvis_components.get("memory")
+    if not memory:
+        raise HTTPException(status_code=503)
+    removed = memory.watchlist.remove(watch_id)
+    if not removed:
+        raise HTTPException(status_code=404, detail="Watch not found")
+    return {"result": "Watch removed"}
+
+
+# ── Distiller ─────────────────────────────────────────────────────────────────
+
+@app.post("/distill")
+async def run_distiller(force: bool = False, _: str = Depends(verify_token)):
+    memory = _jarvis_components.get("memory")
+    if not memory:
+        raise HTTPException(status_code=503)
+    from core.distiller import Distiller
+    distiller = Distiller(memory)
+    result = await distiller.run(force=force)
+    return {"result": result}
 
 
 # ── Developer CLI hooks ────────────────────────────────────────────────────────

@@ -37,6 +37,7 @@ from core.modes import ModeManager, Mode
 from core.brain import Brain
 from core.context import ContextAggregator
 from core.anticipator import Anticipator
+from core.distiller import Distiller
 from core.listener import Listener
 from core.voice import Voice
 from tools.registry import build_registry
@@ -83,6 +84,18 @@ async def morning_brief(brain, anticipator, voice, modes) -> None:
             await voice.speak("Morning. Nothing urgent.")
 
 
+async def run_nightly_distiller(distiller) -> None:
+    while True:
+        await asyncio.sleep(1800)  # check every 30 minutes
+        if distiller.should_run_tonight():
+            log.info("Running nightly distillation")
+            try:
+                result = await distiller.run()
+                log.info("Distillation: %s", result[:120])
+            except Exception as e:
+                log.error("Distillation failed: %s", e)
+
+
 async def run_remote_api(port: int) -> None:
     import uvicorn
     config = uvicorn.Config(api_app, host="0.0.0.0", port=port, log_level="warning")
@@ -123,6 +136,8 @@ async def main() -> None:
     voice = Voice()
     listener = Listener(wake_word=config.get("wake_word", "jarvis"))
 
+    distiller = Distiller(memory)
+
     anticipator.start()
     log.info("Anticipator started")
 
@@ -130,6 +145,8 @@ async def main() -> None:
     if config.get("enable_remote_api", True):
         asyncio.create_task(run_remote_api(api_port))
         log.info("Remote API starting on port %d", api_port)
+
+    asyncio.create_task(run_nightly_distiller(distiller))
 
     profile = memory.get_user_profile()
     name = profile.get("preferred_name") or profile.get("name") or ""
@@ -151,6 +168,43 @@ async def main() -> None:
             result = modes.set(modes.from_string(mode_str))
             voice.set_mode(modes.current.value)
             await voice.speak(result)
+            continue
+
+        # Watchlist — "watch <tool>: <description> when <condition>"
+        if lower.startswith("watch ") and ":" in utterance:
+            # Format: "watch <tool_name>: <description> when <condition>"
+            rest = utterance[6:].strip()
+            tool_part, _, desc_cond = rest.partition(":")
+            tool_name = tool_part.strip()
+            if " when " in desc_cond:
+                description, _, condition = desc_cond.strip().partition(" when ")
+            else:
+                description = desc_cond.strip()
+                condition = "anything notable changes"
+            watch_id = memory.watchlist.add(
+                description=description.strip(),
+                tool_name=tool_name.strip(),
+                tool_args={},
+                condition=condition.strip(),
+            )
+            await voice.speak(f"Watching '{description.strip()}'. I'll alert you when the condition is met.")
+            continue
+
+        if lower.startswith("stop watching "):
+            query = utterance[14:].strip()
+            watches = memory.watchlist.get_all()
+            removed = [w for w in watches if query.lower() in w["description"].lower()]
+            for w in removed:
+                memory.watchlist.remove(w["id"])
+            if removed:
+                await voice.speak(f"Stopped watching {len(removed)} item(s).")
+            else:
+                await voice.speak("No matching watches found.")
+            continue
+
+        if lower in ("distill memory", "distill", "run distillation"):
+            result = await distiller.run(force=True)
+            await voice.speak(result[:200])
             continue
 
         # Procedure learning

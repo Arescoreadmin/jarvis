@@ -116,6 +116,8 @@ class Memory:
         self._conn.executescript(DEV_SCHEMA)
         self._conn.commit()
         self.dev = DevContextTracker(self._conn)
+        from core.watchlist import WatchlistManager
+        self.watchlist = WatchlistManager(self._conn)
         self._working: dict[str, Any] = {}
         self._session_id = str(uuid.uuid4())
 
@@ -233,10 +235,19 @@ class Memory:
         ).fetchall()
         return [dict(r) for r in rows]
 
-    def get_recent_episodes(self, n: int = 20) -> list[dict]:
-        rows = self._conn.execute(
-            "SELECT * FROM episodic ORDER BY timestamp DESC LIMIT ?", (n,)
-        ).fetchall()
+    def get_recent_episodes(self, n: int = 20, hours: int = 0, limit: int = 0) -> list[dict]:
+        if hours:
+            cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+            cap = limit or 500
+            rows = self._conn.execute(
+                "SELECT * FROM episodic WHERE timestamp >= ? ORDER BY timestamp DESC LIMIT ?",
+                (cutoff, cap),
+            ).fetchall()
+        else:
+            cap = limit or n
+            rows = self._conn.execute(
+                "SELECT * FROM episodic ORDER BY timestamp DESC LIMIT ?", (cap,)
+            ).fetchall()
         return [dict(r) for r in reversed(rows)]
 
     def get_session_history(self) -> list[dict]:

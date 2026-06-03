@@ -18,13 +18,17 @@ Endpoints:
 import asyncio
 import os
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import AsyncIterator
 
 import jwt
 from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
+
+UI_PATH = Path(__file__).parent / "ui" / "index.html"
 
 SECRET = os.environ.get("JARVIS_API_SECRET", "change-me-in-production")
 ALGORITHM = "HS256"
@@ -89,6 +93,13 @@ class ActionDecisionRequest(BaseModel):
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
+
+@app.get("/ui", response_class=HTMLResponse, include_in_schema=False)
+async def ui():
+    if UI_PATH.exists():
+        return HTMLResponse(content=UI_PATH.read_text())
+    return HTMLResponse(content="<h1>UI not found</h1>", status_code=404)
+
 
 @app.get("/health")
 async def health():
@@ -272,6 +283,65 @@ async def get_token(api_key: str):
     if api_key != os.environ.get("JARVIS_API_SECRET", ""):
         raise HTTPException(status_code=401, detail="Invalid API key")
     return {"token": create_token()}
+
+
+# ── Executor ──────────────────────────────────────────────────────────────────
+
+class ExecuteRequest(BaseModel):
+    goal: str
+
+
+@app.post("/execute")
+async def execute_goal(req: ExecuteRequest, _: str = Depends(verify_token)):
+    """Run a multi-step autonomous goal and return the full execution log."""
+    from agents.executor import Executor
+    brain = _jarvis_components.get("brain")
+    memory = _jarvis_components.get("memory")
+    ctx = _jarvis_components.get("context")
+    modes = _jarvis_components.get("modes")
+    tools = _jarvis_components.get("tools")
+
+    if not all([brain, memory, ctx, modes, tools]):
+        raise HTTPException(status_code=503, detail="JARVIS not fully initialized")
+
+    executor = Executor(memory, modes, ctx, tools)
+    chunks = []
+    async for chunk in executor.run(req.goal):
+        chunks.append(chunk)
+    return {"log": "".join(chunks)}
+
+
+@app.websocket("/ws/execute")
+async def ws_execute(websocket: WebSocket):
+    """Stream execution progress over WebSocket."""
+    token = websocket.query_params.get("token", "")
+    try:
+        jwt.decode(token, SECRET, algorithms=[ALGORITHM])
+    except jwt.InvalidTokenError:
+        await websocket.close(code=4001)
+        return
+
+    await websocket.accept()
+
+    from agents.executor import Executor
+    memory = _jarvis_components.get("memory")
+    ctx = _jarvis_components.get("context")
+    modes = _jarvis_components.get("modes")
+    tools = _jarvis_components.get("tools")
+
+    if not all([memory, ctx, modes, tools]):
+        await websocket.send_text("[JARVIS not initialized]")
+        await websocket.close()
+        return
+
+    try:
+        goal = await websocket.receive_text()
+        executor = Executor(memory, modes, ctx, tools)
+        async for chunk in executor.run(goal):
+            await websocket.send_text(chunk)
+        await websocket.send_text("\x00")
+    except WebSocketDisconnect:
+        pass
 
 
 # ── Developer CLI hooks ────────────────────────────────────────────────────────

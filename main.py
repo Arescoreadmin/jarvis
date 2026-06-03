@@ -40,6 +40,7 @@ from core.anticipator import Anticipator
 from core.listener import Listener
 from core.voice import Voice
 from tools.registry import build_registry
+from agents.executor import Executor
 from api.server import app as api_app, register_components
 
 
@@ -118,6 +119,7 @@ async def main() -> None:
 
     register_components(brain, memory, context, modes, anticipator, registry)
 
+    executor = Executor(memory, modes, context, registry)
     voice = Voice()
     listener = Listener(wake_word=config.get("wake_word", "jarvis"))
 
@@ -166,6 +168,23 @@ async def main() -> None:
         expanded = memory.expand_procedure(lower)
         if expanded:
             utterance = expanded
+
+        # Explicit execution trigger
+        if lower.startswith(("execute ", "run plan ", "do this: ", "do: ")):
+            for prefix in ("execute ", "run plan ", "do this: ", "do: "):
+                if lower.startswith(prefix):
+                    goal = utterance[len(prefix):].strip()
+                    break
+            log.debug("Executing goal: %s", goal[:80])
+            try:
+                async def _exec_stream():
+                    async for chunk in executor.run(goal):
+                        yield chunk
+                await voice.speak_stream(_exec_stream())
+            except Exception as e:
+                log.error("Execution error: %s", e)
+                await voice.speak("Execution failed. Check logs.")
+            continue
 
         log.debug("Processing: %s", utterance[:80])
 

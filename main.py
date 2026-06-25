@@ -254,6 +254,37 @@ async def main() -> None:
                 await voice.speak(result[:400])
             continue
 
+        # Goal Engine shortcuts
+        if lower in ("what are my active goals", "show my goals", "list goals", "my goals"):
+            tool = registry.get("goal_manager")
+            if tool:
+                result = await tool.run(action="list")
+                await voice.speak(result[:800])
+            continue
+
+        if lower in ("show blocked goals", "what goals are blocked", "blocked goals"):
+            tool = registry.get("goal_manager")
+            if tool:
+                result = await tool.run(action="get_blocked")
+                await voice.speak(result[:600])
+            continue
+
+        if lower.startswith("add goal "):
+            title = utterance[9:].strip()
+            tool = registry.get("goal_manager")
+            if tool:
+                result = await tool.run(action="add", title=title)
+                await voice.speak(result)
+            continue
+
+        if lower.startswith("mark milestone done ") or lower.startswith("complete milestone "):
+            mid = utterance.split()[-1].strip()
+            tool = registry.get("goal_manager")
+            if tool:
+                result = await tool.run(action="complete", milestone_id=mid)
+                await voice.speak(result)
+            continue
+
         # PR orchestration
         if lower in (
             "run pr tasks", "start pr orchestration", "work the pr list",

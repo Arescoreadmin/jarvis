@@ -62,6 +62,14 @@ class Brain:
         except Exception:
             pass
 
+        # Active goals block
+        goals_block = ""
+        try:
+            from core.goals import GoalEngine
+            goals_block = GoalEngine().get_context_block()
+        except Exception:
+            pass
+
         procedures = self._memory.get_all_procedures()
         proc_block = ""
         if procedures:
@@ -85,6 +93,7 @@ class Brain:
             mode_addendum,
             context_block,
             strategy_block,
+            goals_block,
             proc_block,
             behavioral_block,
         ]))

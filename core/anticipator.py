@@ -105,6 +105,7 @@ class Anticipator:
                         self._check_watchlist(),
                         self._check_relationship_drift(),
                         self._check_strategy(),
+                        self._check_goals(),
                         return_exceptions=True,
                     )
                     self._prune_expired()
@@ -353,6 +354,23 @@ class Anticipator:
                     ))
         except Exception as e:
             log.warning("Strategy check failed: %s", e)
+
+    async def _check_goals(self) -> None:
+        try:
+            from core.goals import GoalEngine
+            engine = GoalEngine()
+            blocked = engine.get_blocked()
+            for g in blocked[:3]:
+                key = f"goal:{g['id']}"
+                if not self._already_queued("goals", key):
+                    self._enqueue(Alert(
+                        priority="high",
+                        category="goals",
+                        message=f"Goal blocked: '{g['title']}' has overdue milestone(s)",
+                        action_hint="Review milestones, update due dates, or mark completed.",
+                    ))
+        except Exception as e:
+            log.warning("Goals check failed: %s", e)
 
     def morning_brief(self) -> list[Alert]:
         """All medium+ alerts for morning summary."""

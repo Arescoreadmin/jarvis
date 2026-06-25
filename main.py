@@ -254,6 +254,67 @@ async def main() -> None:
                 await voice.speak(result[:400])
             continue
 
+        # Clarification memory shortcuts
+        if lower.startswith("remember that ") and " means " in lower:
+            # "remember that EOD means end of business day"
+            rest = utterance[len("remember that "):].strip()
+            trigger, _, clarification = rest.partition(" means ")
+            from core.clarifications import ClarificationMemory
+            ClarificationMemory().add_clarification(trigger.strip(), clarification.strip())
+            await voice.speak(f"Got it — I'll remember that '{trigger.strip()}' means {clarification.strip()}.")
+            continue
+
+        if lower in ("what assumptions have you made", "show assumptions", "list assumptions"):
+            from core.clarifications import ClarificationMemory
+            rows = ClarificationMemory().list_open_assumptions()
+            if rows:
+                lines = [f"  • {r['assumption']}" for r in rows[:5]]
+                await voice.speak(f"Open assumptions ({len(rows)}):\n" + "\n".join(lines))
+            else:
+                await voice.speak("No open assumptions.")
+            continue
+
+        if lower in ("show clarifications", "list clarifications", "what do you remember"):
+            from core.clarifications import ClarificationMemory
+            rows = ClarificationMemory().list_clarifications()
+            if rows:
+                lines = [f'  • "{r["trigger"]}" → {r["clarification"]}' for r in rows[:8]]
+                await voice.speak("Stored clarifications:\n" + "\n".join(lines))
+            else:
+                await voice.speak("No clarifications stored yet.")
+            continue
+
+        # Goal Engine shortcuts
+        if lower in ("what are my active goals", "show my goals", "list goals", "my goals"):
+            tool = registry.get("goal_manager")
+            if tool:
+                result = await tool.run(action="list")
+                await voice.speak(result[:800])
+            continue
+
+        if lower in ("show blocked goals", "what goals are blocked", "blocked goals"):
+            tool = registry.get("goal_manager")
+            if tool:
+                result = await tool.run(action="get_blocked")
+                await voice.speak(result[:600])
+            continue
+
+        if lower.startswith("add goal "):
+            title = utterance[9:].strip()
+            tool = registry.get("goal_manager")
+            if tool:
+                result = await tool.run(action="add", title=title)
+                await voice.speak(result)
+            continue
+
+        if lower.startswith("mark milestone done ") or lower.startswith("complete milestone "):
+            mid = utterance.split()[-1].strip()
+            tool = registry.get("goal_manager")
+            if tool:
+                result = await tool.run(action="complete", milestone_id=mid)
+                await voice.speak(result)
+            continue
+
         # PR orchestration
         if lower in (
             "run pr tasks", "start pr orchestration", "work the pr list",

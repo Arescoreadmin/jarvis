@@ -608,6 +608,122 @@ async def draft_okrs(req: DraftOKRRequest, _: str = Depends(verify_token)):
     return {"draft": draft}
 
 
+# ── Goals ─────────────────────────────────────────────────────────────────────
+
+class GoalRequest(BaseModel):
+    title: str
+    description: str = ""
+    deadline: str = ""
+    priority: str = "medium"
+    linked_objective_id: str = ""
+
+
+class MilestoneRequest(BaseModel):
+    goal_id: str
+    title: str
+    due_date: str = ""
+
+
+class GoalStatusRequest(BaseModel):
+    status: str
+
+
+@app.get("/goals")
+async def list_goals(_: str = Depends(verify_token)):
+    from core.goals import GoalEngine
+    engine = GoalEngine()
+    return {"goals": engine.get_active_goals()}
+
+
+@app.post("/goals")
+async def create_goal(req: GoalRequest, _: str = Depends(verify_token)):
+    from core.goals import GoalEngine
+    engine = GoalEngine()
+    gid = engine.add_goal(
+        title=req.title,
+        description=req.description,
+        deadline=req.deadline,
+        priority=req.priority,
+        linked_objective_id=req.linked_objective_id,
+    )
+    return {"id": gid, "title": req.title}
+
+
+@app.get("/goals/blocked")
+async def get_blocked_goals(_: str = Depends(verify_token)):
+    from core.goals import GoalEngine
+    engine = GoalEngine()
+    return {"blocked": engine.get_blocked()}
+
+
+@app.get("/goals/{goal_id}")
+async def get_goal(goal_id: str, _: str = Depends(verify_token)):
+    from core.goals import GoalEngine
+    engine = GoalEngine()
+    g = engine.get_goal(goal_id)
+    if not g:
+        raise HTTPException(status_code=404, detail="Goal not found")
+    return g
+
+
+@app.put("/goals/{goal_id}/status")
+async def set_goal_status(goal_id: str, req: GoalStatusRequest, _: str = Depends(verify_token)):
+    from core.goals import GoalEngine
+    engine = GoalEngine()
+    engine.set_goal_status(goal_id, req.status)
+    return {"id": goal_id, "status": req.status}
+
+
+@app.post("/goals/{goal_id}/milestones")
+async def add_milestone(goal_id: str, req: MilestoneRequest, _: str = Depends(verify_token)):
+    from core.goals import GoalEngine
+    engine = GoalEngine()
+    mid = engine.add_milestone(goal_id=goal_id, title=req.title, due_date=req.due_date)
+    return {"id": mid, "title": req.title}
+
+
+@app.put("/goals/milestones/{milestone_id}/complete")
+async def complete_milestone(milestone_id: str, _: str = Depends(verify_token)):
+    from core.goals import GoalEngine
+    engine = GoalEngine()
+    result = engine.complete_milestone(milestone_id)
+    return result
+
+
+# ── Clarification Memory ──────────────────────────────────────────────────────
+
+class ClarificationRequest(BaseModel):
+    trigger: str
+    clarification: str
+    scope: str = "permanent"
+
+
+@app.get("/memory/assumptions")
+async def list_assumptions(_: str = Depends(verify_token)):
+    from core.clarifications import ClarificationMemory
+    mem = ClarificationMemory()
+    return {"assumptions": mem.list_open_assumptions()}
+
+
+@app.get("/memory/clarifications")
+async def list_clarifications(_: str = Depends(verify_token)):
+    from core.clarifications import ClarificationMemory
+    mem = ClarificationMemory()
+    return {"clarifications": mem.list_clarifications()}
+
+
+@app.post("/memory/clarification")
+async def add_clarification(req: ClarificationRequest, _: str = Depends(verify_token)):
+    from core.clarifications import ClarificationMemory
+    mem = ClarificationMemory()
+    cid = mem.add_clarification(
+        trigger=req.trigger,
+        clarification=req.clarification,
+        scope=req.scope,
+    )
+    return {"id": cid, "trigger": req.trigger}
+
+
 # ── Developer CLI hooks ────────────────────────────────────────────────────────
 
 class DevEventRequest(BaseModel):

@@ -487,6 +487,127 @@ async def run_distiller(force: bool = False, _: str = Depends(verify_token)):
     return {"result": result}
 
 
+# ── Strategic Planning ────────────────────────────────────────────────────────
+
+class ObjectiveRequest(BaseModel):
+    title: str
+    description: str = ""
+    horizon: str = "quarterly"
+    owner: str = ""
+    start_date: str = ""
+    end_date: str = ""
+
+class KeyResultRequest(BaseModel):
+    objective_id: str
+    title: str
+    target_value: float
+    baseline_value: float = 0.0
+    unit: str = ""
+
+class ProgressRequest(BaseModel):
+    kr_id: str
+    current_value: float
+    note: str = ""
+
+class StatusRequest(BaseModel):
+    objective_id: str
+    status: str
+
+class DraftOKRRequest(BaseModel):
+    description: str
+
+
+@app.get("/strategy/objectives")
+async def get_objectives(horizon: str = "", status: str = "", _: str = Depends(verify_token)):
+    from core.strategy import StrategyEngine
+    engine = StrategyEngine()
+    return {"objectives": engine.list_objectives(
+        horizon=horizon or None,
+        status=status or None,
+    )}
+
+
+@app.get("/strategy/objectives/{objective_id}")
+async def get_objective(objective_id: str, _: str = Depends(verify_token)):
+    from core.strategy import StrategyEngine
+    engine = StrategyEngine()
+    obj = engine.get_objective(objective_id)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Objective not found")
+    return obj
+
+
+@app.post("/strategy/objective")
+async def create_objective(req: ObjectiveRequest, _: str = Depends(verify_token)):
+    from core.strategy import StrategyEngine
+    engine = StrategyEngine()
+    oid = engine.add_objective(
+        title=req.title,
+        description=req.description,
+        horizon=req.horizon,
+        owner=req.owner,
+        start_date=req.start_date,
+        end_date=req.end_date,
+    )
+    return {"id": oid, "result": f"Objective created: {req.title}"}
+
+
+@app.post("/strategy/key-result")
+async def add_key_result(req: KeyResultRequest, _: str = Depends(verify_token)):
+    from core.strategy import StrategyEngine
+    engine = StrategyEngine()
+    krid = engine.add_key_result(
+        objective_id=req.objective_id,
+        title=req.title,
+        target_value=req.target_value,
+        baseline_value=req.baseline_value,
+        unit=req.unit,
+    )
+    return {"id": krid, "result": f"Key result added: {req.title}"}
+
+
+@app.put("/strategy/kr/progress")
+async def update_kr_progress(req: ProgressRequest, _: str = Depends(verify_token)):
+    from core.strategy import StrategyEngine
+    engine = StrategyEngine()
+    try:
+        result = engine.update_progress(req.kr_id, req.current_value, req.note)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.put("/strategy/objective/status")
+async def set_objective_status(req: StatusRequest, _: str = Depends(verify_token)):
+    from core.strategy import StrategyEngine
+    engine = StrategyEngine()
+    engine.set_objective_status(req.objective_id, req.status)
+    return {"result": f"Status updated to: {req.status}"}
+
+
+@app.get("/strategy/at-risk")
+async def get_at_risk(_: str = Depends(verify_token)):
+    from core.strategy import StrategyEngine
+    engine = StrategyEngine()
+    return {"at_risk": engine.get_at_risk()}
+
+
+@app.get("/strategy/weekly-review")
+async def get_weekly_review(_: str = Depends(verify_token)):
+    from core.strategy import StrategyEngine
+    engine = StrategyEngine()
+    review = await engine.generate_weekly_review()
+    return {"review": review}
+
+
+@app.post("/strategy/draft-okrs")
+async def draft_okrs(req: DraftOKRRequest, _: str = Depends(verify_token)):
+    from core.strategy import StrategyEngine
+    engine = StrategyEngine()
+    draft = await engine.generate_okrs_from_description(req.description)
+    return {"draft": draft}
+
+
 # ── Developer CLI hooks ────────────────────────────────────────────────────────
 
 class DevEventRequest(BaseModel):

@@ -104,6 +104,7 @@ class Anticipator:
                         self._check_home(),
                         self._check_watchlist(),
                         self._check_relationship_drift(),
+                        self._check_strategy(),
                         return_exceptions=True,
                     )
                     self._prune_expired()
@@ -335,6 +336,23 @@ class Anticipator:
             a for a in self._queue
             if not (a.expires_at and a.expires_at < now and not a.surfaced)
         ]
+
+    async def _check_strategy(self) -> None:
+        try:
+            from core.strategy import StrategyEngine
+            engine = StrategyEngine()
+            at_risk = engine.get_at_risk()
+            for obj in at_risk[:3]:
+                key = f"strategy:{obj['id']}"
+                if not self._already_queued("strategy", key):
+                    self._enqueue(Alert(
+                        priority="high",
+                        category="strategy",
+                        message=f"Strategic objective at risk: '{obj['title']}' ({obj['horizon']})",
+                        action_hint="Review progress and decide: reprioritize, add resources, or adjust target.",
+                    ))
+        except Exception as e:
+            log.warning("Strategy check failed: %s", e)
 
     def morning_brief(self) -> list[Alert]:
         """All medium+ alerts for morning summary."""

@@ -5,7 +5,7 @@
 > Do not skip items or reorder without explicit instruction from the owner.
 
 **Last Updated:** 2026-06-25
-**Current Phase:** Foundation → Intelligence Layer
+**Current Phase:** Intelligence Layer (PR-10 in progress)
 
 ---
 
@@ -31,6 +31,7 @@
 | 7 | Relationship Engine (contact graph, drift detection, pre-meeting briefs) | — | 2026-06-25 |
 | 8 | Developer Context Tracker (Claude Code CLI hook integration) | — | 2026-06-25 |
 | 9 | **PR Orchestrator** — autonomous PR lifecycle: branch → code gen → push → CI monitor → auto-fix (3x) → merge → local test validate | [#7](https://github.com/Arescoreadmin/jarvis/pull/7) | 2026-06-25 |
+| 10 | **Strategic Planning Layer** — OKR engine (objectives + key results + progress log), Brain injection, at-risk anticipator alerts, `strategic_planning` tool, 10 API endpoints, CLI shortcuts | — | — |
 
 ---
 

@@ -54,6 +54,14 @@ class Brain:
         mode_addendum = self._modes.profile.system_addendum
         context_block = context_snapshot.to_prompt_block()
 
+        # Strategic plan block — injected so every response is goal-aligned
+        strategy_block = ""
+        try:
+            from core.strategy import StrategyEngine
+            strategy_block = StrategyEngine().get_active_plan()
+        except Exception:
+            pass
+
         procedures = self._memory.get_all_procedures()
         proc_block = ""
         if procedures:
@@ -76,6 +84,7 @@ class Brain:
             f"The user's name is {name}.",
             mode_addendum,
             context_block,
+            strategy_block,
             proc_block,
             behavioral_block,
         ]))

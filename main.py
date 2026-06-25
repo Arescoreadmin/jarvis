@@ -232,6 +232,28 @@ async def main() -> None:
                 await voice.speak("No matching watches found.")
             continue
 
+        # Strategic planning shortcuts
+        if lower in ("strategic review", "weekly review", "strategy review"):
+            tool = registry.get("strategic_planning")
+            if tool:
+                result = await tool.run(action="generate_weekly_review")
+                await voice.speak(result[:600])
+            continue
+
+        if lower in ("what are our goals", "show objectives", "show okrs", "list objectives"):
+            tool = registry.get("strategic_planning")
+            if tool:
+                result = await tool.run(action="list_objectives")
+                await voice.speak(result[:600])
+            continue
+
+        if lower in ("what's at risk", "what is at risk", "show at risk", "at risk objectives"):
+            tool = registry.get("strategic_planning")
+            if tool:
+                result = await tool.run(action="get_at_risk")
+                await voice.speak(result[:400])
+            continue
+
         # PR orchestration
         if lower in (
             "run pr tasks", "start pr orchestration", "work the pr list",

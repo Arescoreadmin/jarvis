@@ -104,6 +104,20 @@ def _init_schema(conn: sqlite3.Connection) -> None:
         );
         CREATE INDEX IF NOT EXISTS idx_pending_actions_status ON pending_actions(status);
         CREATE INDEX IF NOT EXISTS idx_pending_actions_created ON pending_actions(created_at);
+
+        CREATE TABLE IF NOT EXISTS pr_tasks (
+            id TEXT PRIMARY KEY,
+            state TEXT NOT NULL DEFAULT 'PENDING',
+            repo TEXT,
+            branch TEXT,
+            pr_number INTEGER,
+            pr_url TEXT,
+            fix_attempt INTEGER DEFAULT 0,
+            local_fix_attempt INTEGER DEFAULT 0,
+            error_log TEXT,
+            work_dir TEXT,
+            updated_at TEXT NOT NULL
+        );
     """)
     conn.commit()
 
@@ -430,6 +444,51 @@ class Memory:
         except (TypeError, json.JSONDecodeError):
             data["args"] = {}
         return data
+
+    # ── PR task state ──────────────────────────────────────────────────────────
+
+    def upsert_pr_task(self, task) -> None:
+        self._conn.execute(
+            """INSERT INTO pr_tasks
+               (id, state, repo, branch, pr_number, pr_url, fix_attempt,
+                local_fix_attempt, error_log, work_dir, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(id) DO UPDATE SET
+                 state=excluded.state,
+                 pr_number=excluded.pr_number,
+                 pr_url=excluded.pr_url,
+                 fix_attempt=excluded.fix_attempt,
+                 local_fix_attempt=excluded.local_fix_attempt,
+                 error_log=excluded.error_log,
+                 work_dir=excluded.work_dir,
+                 updated_at=excluded.updated_at""",
+            (
+                task.id,
+                task.state,
+                task.repo,
+                task.branch,
+                task.pr_number,
+                task.pr_url,
+                getattr(task, "fix_attempt", 0),
+                getattr(task, "local_fix_attempt", 0),
+                getattr(task, "error_log", ""),
+                getattr(task, "work_dir", ""),
+                _now(),
+            ),
+        )
+        self._conn.commit()
+
+    def get_pr_task(self, task_id: str) -> Optional[dict]:
+        row = self._conn.execute(
+            "SELECT * FROM pr_tasks WHERE id = ?", (task_id,)
+        ).fetchone()
+        return dict(row) if row else None
+
+    def get_all_pr_tasks(self) -> list[dict]:
+        rows = self._conn.execute(
+            "SELECT * FROM pr_tasks ORDER BY updated_at DESC"
+        ).fetchall()
+        return [dict(r) for r in rows]
 
     def close(self) -> None:
         self._conn.close()

@@ -44,6 +44,7 @@ from core.listener import Listener
 from core.voice import Voice
 from tools.registry import build_registry
 from agents.executor import Executor
+from agents.pr_orchestrator import PROrchestrator
 from api.server import app as api_app, register_components
 
 
@@ -144,6 +145,7 @@ async def main() -> None:
     register_components(brain, memory, context, modes, anticipator, registry, relationships, push)
 
     executor = Executor(memory, modes, context, registry)
+    pr_orchestrator = PROrchestrator(memory, modes, context, registry, config)
     voice = Voice()
     listener = Listener(wake_word=config.get("wake_word", "jarvis"))
 
@@ -228,6 +230,27 @@ async def main() -> None:
                 await voice.speak(f"Stopped watching {len(removed)} item(s).")
             else:
                 await voice.speak("No matching watches found.")
+            continue
+
+        # PR orchestration
+        if lower in (
+            "run pr tasks", "start pr orchestration", "work the pr list",
+            "work my pr list", "run the pr list", "run prs",
+        ) or lower.startswith("run pr tasks "):
+            task_file = None
+            if lower.startswith("run pr tasks "):
+                task_file = utterance[len("run pr tasks "):].strip()
+            if config.get("pr_orchestration", {}).get("enabled", True):
+                try:
+                    async def _orch_stream():
+                        async for chunk in pr_orchestrator.run(task_file):
+                            yield chunk
+                    await voice.speak_stream(_orch_stream())
+                except Exception as e:
+                    log.error("PR orchestration error: %s", e)
+                    await voice.speak(f"PR orchestration failed: {e}")
+            else:
+                await voice.speak("PR orchestration is disabled in config.")
             continue
 
         if lower in ("distill memory", "distill", "run distillation"):

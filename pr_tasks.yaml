@@ -1,0 +1,40 @@
+# Jarvis PR Task List
+# ─────────────────────────────────────────────────────────────────────────────
+# Global defaults (can be overridden per task)
+repo: owner/your-repo           # default repo — change this to owner/repo
+base_branch: main
+test_command: pytest -x -q      # local test command run after each merge
+# repo_url: https://github.com/owner/your-repo.git   # for local clone/pull
+
+tasks:
+  - id: task-001
+    title: "Add health check endpoint"
+    branch: feature/health-check
+    pr_title: "feat: add /health endpoint"
+    description: |
+      Add a simple GET /health endpoint that returns {"status": "ok", "timestamp": <utc iso>}.
+      Should require no authentication. Used by load balancers and uptime monitors.
+    files_to_create:
+      - path: api/health.py
+        prompt: |
+          Create a FastAPI router with a single GET /health endpoint.
+          It should return JSON: {"status": "ok", "timestamp": "<utc iso string>"}.
+          No authentication required. Import datetime and timezone from stdlib.
+    files_to_modify:
+      - path: api/main.py
+        prompt: |
+          Register the health router from api/health.py into the FastAPI app.
+          Add: from api.health import router as health_router
+          Then: app.include_router(health_router)
+    merge_strategy: squash
+
+  # Add more tasks below following the same structure:
+  # - id: task-002
+  #   title: "..."
+  #   branch: feature/...
+  #   pr_title: "..."
+  #   description: |
+  #     ...
+  #   files_to_create: []
+  #   files_to_modify: []
+  #   merge_strategy: squash

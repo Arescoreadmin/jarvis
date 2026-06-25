@@ -32,7 +32,8 @@ jobs:
             uvicorn \
             PyJWT \
             pydantic \
-            websockets
+            websockets \
+            pytest
 
       - name: Syntax check — all Python files
         run: |

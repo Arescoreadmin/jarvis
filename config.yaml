@@ -78,6 +78,16 @@ relationships:
   drift_check: true             # Surface drift alerts in anticipator
   pre_meeting_brief: true       # Auto-brief before calendar events
 
+# ── PR Orchestration ──────────────────────────────────────────────────────────
+pr_orchestration:
+  enabled: true
+  task_file: "./pr_tasks.yaml"      # path to your PR task list
+  ci_poll_interval_seconds: 60      # how often to check CI status
+  ci_timeout_minutes: 30            # give up waiting for CI after this
+  max_fix_retries: 3                # auto-fix attempts before paging human
+  default_merge_strategy: squash    # squash | merge | rebase
+  autonomous_mode: true             # skip confirmation prompts during orchestration
+
 # ── Professional Intelligence ──────────────────────────────────────────────────
 # These tools are available to JARVIS automatically via the tool registry.
 # No extra config needed — just use them in conversation:

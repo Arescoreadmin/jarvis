@@ -82,6 +82,8 @@ class ToolRegistry:
 def build_registry(config: dict) -> ToolRegistry:
     registry = ToolRegistry()
 
+    from tools.github import GitHubTool
+    from tools.git_ops import GitOpsTool
     from tools.web_search import WebSearchTool
     from tools.calendar import CalendarTool
     from tools.email import EmailTool
@@ -95,6 +97,8 @@ def build_registry(config: dict) -> ToolRegistry:
     from tools.architect import ArchitectTool
     from tools.business import BusinessTool
 
+    registry.register(GitHubTool(autonomous_mode=config.get("pr_orchestration", {}).get("autonomous_mode", True)))
+    registry.register(GitOpsTool())
     registry.register(WebSearchTool())
     registry.register(CalendarTool(config.get("google_calendar_credentials", "")))
     registry.register(EmailTool(config.get("gmail_credentials", "")))

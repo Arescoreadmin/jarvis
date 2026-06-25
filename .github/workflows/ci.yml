@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install CI dependencies
+        run: |
+          pip install --upgrade pip
+          pip install \
+            anthropic \
+            python-dotenv \
+            pyyaml \
+            httpx \
+            fastapi \
+            uvicorn \
+            PyJWT \
+            pydantic \
+            websockets
+
+      - name: Syntax check — all Python files
+        run: |
+          echo "Checking syntax..."
+          find . -name "*.py" \
+            -not -path "./.git/*" \
+            -not -path "./scripts/*" \
+            | xargs python -m py_compile
+          echo "All files OK"
+
+      - name: Run tests
+        run: |
+          python -m pytest tests/ -v --tb=short
+        env:
+          # Prevent any accidental real API calls during tests
+          ANTHROPIC_API_KEY: "ci-placeholder"
+          JARVIS_API_SECRET: "ci-placeholder"

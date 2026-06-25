@@ -70,6 +70,14 @@ class Brain:
         except Exception:
             pass
 
+        # Clarification memory — user-defined term overrides and corrections
+        clarifications_block = ""
+        try:
+            from core.clarifications import ClarificationMemory
+            clarifications_block = ClarificationMemory().get_context_block()
+        except Exception:
+            pass
+
         procedures = self._memory.get_all_procedures()
         proc_block = ""
         if procedures:
@@ -94,6 +102,7 @@ class Brain:
             context_block,
             strategy_block,
             goals_block,
+            clarifications_block,
             proc_block,
             behavioral_block,
         ]))
@@ -195,6 +204,7 @@ class Brain:
         if response_text:
             self._memory.add_episode("assistant", response_text)
             self._extract_and_store_commitments(original_input, response_text)
+            self._extract_assumptions(original_input, response_text)
 
         for call in tool_calls:
             async for chunk in self._execute_tool_and_continue(
@@ -309,6 +319,13 @@ class Brain:
                     context=user_input[:200],
                     priority="medium",
                 )
+
+    def _extract_assumptions(self, user_input: str, response: str) -> None:
+        try:
+            from core.clarifications import ClarificationMemory
+            ClarificationMemory().extract_assumptions_from_response(response, user_input[:300])
+        except Exception:
+            pass
 
     async def inject_proactive(self, message: str, priority: str = "high") -> str:
         """Generate a proactive surface message from JARVIS."""

@@ -87,6 +87,7 @@ def build_registry(config: dict) -> ToolRegistry:
     from tools.web_search import WebSearchTool
     from tools.strategic_planning import StrategicPlanningTool
     from tools.goal_manager import GoalManagerTool
+    from tools.clarification_tool import ClarificationTool
     from tools.calendar import CalendarTool
     from tools.email import EmailTool
     from tools.tasks import TaskTool
@@ -121,5 +122,6 @@ def build_registry(config: dict) -> ToolRegistry:
     registry.register(BusinessTool())
     registry.register(StrategicPlanningTool())
     registry.register(GoalManagerTool())
+    registry.register(ClarificationTool())
 
     return registry

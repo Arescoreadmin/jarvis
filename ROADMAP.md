@@ -5,7 +5,7 @@
 > Do not skip items or reorder without explicit instruction from the owner.
 
 **Last Updated:** 2026-06-25
-**Current Phase:** Intelligence Layer (PR-12 next)
+**Current Phase:** Intelligence Layer (PR-13 next)
 
 ---
 
@@ -33,6 +33,7 @@
 | 9 | **PR Orchestrator** — autonomous PR lifecycle: branch → code gen → push → CI monitor → auto-fix (3x) → merge → local test validate | [#7](https://github.com/Arescoreadmin/jarvis/pull/7) | 2026-06-25 |
 | 10 | **Strategic Planning Layer** — OKR engine (objectives + key results + progress log), Brain injection, at-risk anticipator alerts, `strategic_planning` tool, 10 API endpoints, CLI shortcuts | [#8](https://github.com/Arescoreadmin/jarvis/pull/8) | 2026-06-25 |
 | 11 | **Goal Engine** — weekly milestone-driven goal tracking, blocked-goal detection, Brain injection, anticipator alerts, `goal_manager` tool (8 actions), 7 API endpoints, CLI shortcuts | [#9](https://github.com/Arescoreadmin/jarvis/pull/9) | 2026-06-25 |
+| 12 | **Clarification Memory** — assumption auto-extraction, user clarification storage, Brain injection, `clarification_memory` tool (5 actions), 3 API endpoints, CLI shortcuts | — | 2026-06-25 |
 
 ---
 

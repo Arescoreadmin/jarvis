@@ -690,6 +690,40 @@ async def complete_milestone(milestone_id: str, _: str = Depends(verify_token)):
     return result
 
 
+# ── Clarification Memory ──────────────────────────────────────────────────────
+
+class ClarificationRequest(BaseModel):
+    trigger: str
+    clarification: str
+    scope: str = "permanent"
+
+
+@app.get("/memory/assumptions")
+async def list_assumptions(_: str = Depends(verify_token)):
+    from core.clarifications import ClarificationMemory
+    mem = ClarificationMemory()
+    return {"assumptions": mem.list_open_assumptions()}
+
+
+@app.get("/memory/clarifications")
+async def list_clarifications(_: str = Depends(verify_token)):
+    from core.clarifications import ClarificationMemory
+    mem = ClarificationMemory()
+    return {"clarifications": mem.list_clarifications()}
+
+
+@app.post("/memory/clarification")
+async def add_clarification(req: ClarificationRequest, _: str = Depends(verify_token)):
+    from core.clarifications import ClarificationMemory
+    mem = ClarificationMemory()
+    cid = mem.add_clarification(
+        trigger=req.trigger,
+        clarification=req.clarification,
+        scope=req.scope,
+    )
+    return {"id": cid, "trigger": req.trigger}
+
+
 # ── Developer CLI hooks ────────────────────────────────────────────────────────
 
 class DevEventRequest(BaseModel):
